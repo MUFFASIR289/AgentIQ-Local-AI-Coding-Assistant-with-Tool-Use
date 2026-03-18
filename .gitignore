@@ -1,0 +1,225 @@
+# =============================================================================
+#  .gitignore for CodeMentor AI Agent
+#  A pattern in this file tells Git: "pretend this file/folder doesn't exist."
+#  Lines starting with # are comments — Git ignores them.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+#  SECRETS & ENVIRONMENT VARIABLES
+#  The most important section. These files may contain API keys, passwords,
+#  or personal config. NEVER let them reach GitHub — bots scan for them
+#  within seconds of a push and can abuse credentials immediately.
+# -----------------------------------------------------------------------------
+
+.env                  # your real environment file with actual values
+.env.local            # environment overrides for local development
+.env.*.local          # e.g. .env.development.local, .env.test.local
+*.key                 # any raw key file
+secrets.json          # a common name people use to store credentials
+credentials.json      # another common name
+
+
+# -----------------------------------------------------------------------------
+#  PYTHON CACHE & COMPILED FILES
+#  Python compiles your .py source files into .pyc bytecode files for speed.
+#  These are machine-specific, regenerated automatically, and have no place
+#  in version control — they'd just create noise in every commit.
+# -----------------------------------------------------------------------------
+
+__pycache__/          # folder Python creates to store compiled .pyc files
+*.py[cod]             # matches .pyc (compiled), .pyo (optimized), .pyd (Windows DLL)
+*$py.class            # Jython (Java-based Python) compiled class files
+*.so                  # compiled C extension modules on Linux/macOS
+
+
+# -----------------------------------------------------------------------------
+#  VIRTUAL ENVIRONMENTS
+#  Your venv/ folder can be hundreds of MB and is entirely specific to your
+#  OS and Python version. Anyone who clones your repo recreates it themselves
+#  using: pip install -r requirements.txt
+#  There is no reason to ever commit a virtual environment.
+# -----------------------------------------------------------------------------
+
+venv/
+.venv/
+env/
+ENV/
+venv.bak/             # backup venvs people sometimes create accidentally
+.python-version       # pyenv version file (machine-specific)
+
+
+# -----------------------------------------------------------------------------
+#  BUILD & DISTRIBUTION ARTIFACTS
+#  If you ever package your project (e.g. to publish on PyPI), Python creates
+#  these folders. They're generated output — not source code.
+# -----------------------------------------------------------------------------
+
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+MANIFEST
+
+
+# -----------------------------------------------------------------------------
+#  TESTING & COVERAGE REPORTS
+#  pytest generates cache folders and coverage data files while running tests.
+#  These are temporary outputs, not source files. The HTML report in htmlcov/
+#  can be regenerated anytime with: pytest --cov --cov-report=html
+# -----------------------------------------------------------------------------
+
+.pytest_cache/        # pytest stores test result cache here for faster reruns
+.coverage             # raw coverage data file produced by pytest-cov
+.coverage.*           # sharded coverage files when running parallel tests
+htmlcov/              # HTML coverage report folder (can be regenerated)
+coverage.xml          # XML coverage report (used by some CI tools)
+
+
+# -----------------------------------------------------------------------------
+#  LINTING & FORMATTING TOOLS
+#  Ruff and Mypy store their own cache files to speed up repeated runs.
+#  Like pytest cache, these are temporary and machine-specific.
+# -----------------------------------------------------------------------------
+
+.ruff_cache/          # Ruff linter's cache (speeds up repeated linting runs)
+.mypy_cache/          # Mypy type-checker cache
+.dmypy.json
+dmypy.json
+
+
+# -----------------------------------------------------------------------------
+#  GRADIO SPECIFIC
+#  Gradio creates these folders automatically when the app runs.
+#  "flagged/" is created when users click the Flag button in Gradio's UI —
+#  it stores flagged conversations, which may contain personal data.
+#  "gradio_cached_examples/" caches example outputs for faster loading.
+# -----------------------------------------------------------------------------
+
+gradio_cached_examples/
+flagged/              # ⚠️ may contain user conversation data — never commit this
+
+
+# -----------------------------------------------------------------------------
+#  LOGS
+#  Log files grow continuously and are environment-specific. If you need to
+#  share logs, attach them manually — don't commit them to the repo.
+# -----------------------------------------------------------------------------
+
+*.log
+logs/
+log/
+
+
+# -----------------------------------------------------------------------------
+#  JUPYTER NOTEBOOKS (if you ever experiment in notebooks)
+#  .ipynb_checkpoints/ is Jupyter's auto-save folder. Notebook checkpoint
+#  files duplicate your notebook content and change on every autosave,
+#  creating meaningless diffs in Git history.
+# -----------------------------------------------------------------------------
+
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+
+# -----------------------------------------------------------------------------
+#  EDITORS & IDEs
+#  Every developer uses different tools. Committing editor config files forces
+#  your preferences on everyone who clones the repo. The exception is
+#  .vscode/extensions.json (recommended extensions) and .vscode/settings.json
+#  (project-level settings) — these are intentionally committed in this project
+#  because they improve the experience for anyone using VS Code.
+#  The files below are the ones we do NOT want committed.
+# -----------------------------------------------------------------------------
+
+# PyCharm / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim / Neovim swap files
+*.swp
+*.swo
+*~
+
+# Emacs backup files
+\#*\#
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Spyder IDE
+.spyderproject.cfg
+.spyproject/
+
+
+# -----------------------------------------------------------------------------
+#  OPERATING SYSTEM FILES
+#  Windows, macOS, and Linux all litter folders with hidden metadata files.
+#  These are 100% machine-specific and meaningless to anyone else.
+# -----------------------------------------------------------------------------
+
+# macOS
+.DS_Store             # macOS folder metadata (created whenever you open a folder)
+.AppleDouble
+.LSOverride
+._*                   # resource fork files
+
+# Windows
+Thumbs.db             # Windows thumbnail cache
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini           # Windows folder display settings
+$RECYCLE.BIN/
+*.lnk                 # Windows shortcut files
+
+# Linux
+.Trash-*
+
+
+# -----------------------------------------------------------------------------
+#  DATA & MODEL FILES
+#  If you ever add local datasets or downloaded model weights to your project
+#  folder, exclude them here. They're often gigabytes in size and belong in
+#  cloud storage or a dedicated model registry, not Git.
+# -----------------------------------------------------------------------------
+
+*.csv                 # uncomment if your CSV files are large data files
+*.pkl                 # Python pickle files (serialised model objects)
+*.h5                  # HDF5 model weight files (Keras, etc.)
+*.pt                  # PyTorch model checkpoints
+*.pth                 # PyTorch model weights
+*.onnx                # ONNX exported models
+*.bin                 # binary model files (HuggingFace format)
+models/               # a common folder name for storing local model weights
+data/raw/             # raw data that should never be committed
+
+
+# -----------------------------------------------------------------------------
+#  TEMPORARY & MISC FILES
+#  Scratch files, temp outputs, and any local notes you don't want published.
+# -----------------------------------------------------------------------------
+
+*.tmp
+*.temp
+*.bak
+*.orig                # backup files created by some merge tools
+scratch/              # a scratch folder for local experimentation
+local/                # anything in a "local" folder stays local
+TODO_local.md         # personal todo notes (use GitHub Issues for shared todos)
+
+# =============================================================================
+#  WHAT IS INTENTIONALLY NOT IGNORED (i.e. committed to GitHub):
+#
+#  ✅ .env.example        — safe template showing what variables exist
+#  ✅ .vscode/settings.json  — helpful project-level VS Code config
+#  ✅ .vscode/extensions.json — recommended extensions for contributors
+#  ✅ .github/workflows/  — CI/CD pipeline definitions
+#  ✅ requirements.txt    — the shopping list for pip install
+#  ✅ All .py source files
+#  ✅ README.md, LICENSE, etc.
+# =============================================================================
