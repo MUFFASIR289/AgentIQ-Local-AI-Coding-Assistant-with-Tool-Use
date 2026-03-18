@@ -1,11 +1,11 @@
 """
 Gradio UI — Clean, professional chat interface for CodeMentor AI.
-Compatible with Gradio 6.0+
+Compatible with Gradio 5.x / 6.x
 
-Key Gradio 6 changes applied here:
-  - gr.Row() no longer accepts wrap=True
-  - gr.Chatbot() no longer accepts type=, bubble_full_width=
-  - gr.Blocks() no longer accepts theme= or css= (pass css to launch() if needed)
+Key format change from Gradio 4 → 5/6:
+  History is no longer a list of [user, bot] pairs.
+  It is now a flat list of {"role": ..., "content": ...} dicts,
+  exactly matching the OpenAI/Ollama message format.
 """
 
 import gradio as gr
@@ -21,30 +21,53 @@ agent = AIAgent()
 
 def handle_send(message: str, history: list):
     """
-    Called the moment the user hits Send or presses Enter.
-    Appends the user message to history (with None as the bot reply placeholder)
-    and clears the input box so the UI feels responsive immediately.
+    Called the instant the user hits Send or presses Enter.
+
+    We immediately append TWO new entries to the history:
+      - A "user" message containing what they typed
+      - An "assistant" message with empty content (a placeholder)
+
+    The empty assistant placeholder is important — it tells Gradio
+    that a bot reply is coming, and bot_respond() will fill it in
+    progressively as the model streams its response.
+
+    We also return an empty string as the second output so the
+    text input box is cleared right away, making the UI feel snappy.
     """
     if not message.strip():
         return history, ""
-    history = history + [[message, None]]
+
+    history = history + [
+        {"role": "user",      "content": message},
+        {"role": "assistant", "content": ""},   # placeholder filled by bot_respond
+    ]
     return history, ""
 
 
 def bot_respond(history: list):
     """
-    Generator function — streams the agent's reply one chunk at a time.
-    Each `yield` causes Gradio to re-render the chatbot with the latest partial text,
-    which creates the live 'typing' streaming effect you see in the UI.
+    Generator function that streams the agent's reply into the chat.
+
+    Because this function uses 'yield' instead of 'return', it is a
+    Python generator. Each time it yields, Gradio re-renders the
+    chatbot component with the updated history — this is what creates
+    the live 'typing' streaming effect you see on screen.
+
+    We find the last assistant entry (which handle_send created as "")
+    and progressively overwrite its "content" field with each new chunk
+    that arrives from the model.
     """
-    if not history or history[-1][1] is not None:
+    # Safety check: if history is empty or last message isn't the assistant placeholder, do nothing
+    if not history or history[-1]["role"] != "assistant":
         yield history
         return
 
-    user_message = history[-1][0]
+    # The user's message is always the second-to-last entry
+    user_message = history[-2]["content"]
 
+    # Stream partial responses from the agent, updating the placeholder in real time
     for partial_response in agent.stream_response(user_message):
-        history[-1][1] = partial_response   # fill the bot's reply slot progressively
+        history[-1]["content"] = partial_response  # fill the assistant placeholder progressively
         yield history
 
 
@@ -71,7 +94,7 @@ EXAMPLES = [
 
 
 # ──────────────────────────────────────────────
-#  CUSTOM CSS  (injected via demo.launch())
+#  CUSTOM CSS
 # ──────────────────────────────────────────────
 
 CUSTOM_CSS = """
@@ -124,12 +147,15 @@ body, .gradio-container {
 def build_ui() -> gr.Blocks:
     """
     Builds and returns the Gradio Blocks app.
-    We return the `demo` object so main.py can call demo.launch() on it,
-    keeping launch configuration cleanly separated from UI construction.
+
+    gr.Blocks is Gradio's low-level layout system. Think of it like
+    building a webpage with div elements — you nest Rows and Columns
+    to control how components are arranged, then wire up events
+    (clicks, submits) to Python functions.
     """
     with gr.Blocks(title="CodeMentor AI") as demo:
 
-        # ── Header banner ──
+        # ── Header banner (pure HTML — Gradio passes this straight to the browser) ──
         gr.HTML("""
         <div class="header-block">
             <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
@@ -166,16 +192,19 @@ def build_ui() -> gr.Blocks:
 
         with gr.Row(equal_height=True):
 
-            # ── Left: main chat panel ──
+            # ── Left column: the main chat area ──
             with gr.Column(scale=4):
 
+                # gr.Chatbot renders the conversation.
+                # In Gradio 5/6, it defaults to the "messages" format,
+                # meaning history must be a list of {"role":..., "content":...} dicts.
                 chatbot = gr.Chatbot(
                     label="",
                     height=520,
                     show_label=False,
-                    render_markdown=True,
+                    render_markdown=True,   # renders **bold**, `code`, etc. in responses
                     avatar_images=(
-                        None,
+                        None,  # user avatar (None = default)
                         "https://api.dicebear.com/7.x/bottts/svg?seed=codebot&backgroundColor=6366f1",
                     ),
                     placeholder=(
@@ -188,20 +217,20 @@ def build_ui() -> gr.Blocks:
                     ),
                 )
 
-                # Input row — text box + buttons side by side
+                # Input row: text box and buttons sit side by side (scale controls width ratio)
                 with gr.Row():
                     msg_input = gr.Textbox(
                         placeholder="Ask a coding or AI question... (Press Enter to send)",
                         lines=1,
                         max_lines=5,
                         show_label=False,
-                        scale=5,
+                        scale=5,        # takes up 5/7 of the row width
                         container=False,
                     )
-                    send_btn = gr.Button("Send ✈️", scale=1, elem_classes=["send-btn"])
+                    send_btn  = gr.Button("Send ✈️", scale=1, elem_classes=["send-btn"])
                     clear_btn = gr.Button("🗑️ Clear", scale=1, elem_classes=["clear-btn"])
 
-                # Example prompt buttons — split into two rows manually (no wrap= needed)
+                # Example prompt buttons — two rows of four
                 gr.HTML("<div style='margin-top:12px; color:#64748b; font-size:13px; font-weight:500;'>✨ Try an example:</div>")
 
                 with gr.Row():
@@ -211,7 +240,9 @@ def build_ui() -> gr.Blocks:
                             size="sm",
                             elem_classes=["example-btn"],
                         )
-                        # default argument trick (e=ex) captures the loop variable correctly
+                        # The default-argument trick (e=ex) is necessary here.
+                        # Without it, all buttons would capture the same loop variable
+                        # (the last value of 'ex') due to Python's closure behaviour.
                         ex_btn.click(fn=lambda e=ex: e, outputs=msg_input)
 
                 with gr.Row():
@@ -223,7 +254,7 @@ def build_ui() -> gr.Blocks:
                         )
                         ex_btn.click(fn=lambda e=ex: e, outputs=msg_input)
 
-            # ── Right: sidebar info panel ──
+            # ── Right column: info sidebar ──
             with gr.Column(scale=1):
                 gr.HTML("""
                 <div class="sidebar-box">
@@ -258,11 +289,23 @@ def build_ui() -> gr.Blocks:
                 </div>
                 """)
 
-        # ── Event wiring ──
-        # Each interaction is a two-step chain:
-        #   Step 1 (handle_send): instantly append the user message + clear input
-        #   Step 2 (bot_respond): stream the bot reply back in
-        # The .then() chains these steps so they run sequentially.
+        # ── Event wiring — this is where the UI becomes interactive ──
+        #
+        # Each interaction is a two-step chain using .then():
+        #
+        #   Step 1 — handle_send():
+        #     Runs instantly when the user submits.
+        #     Appends user message + empty assistant placeholder to history.
+        #     Clears the text input box.
+        #
+        #   Step 2 — bot_respond():
+        #     Runs immediately after Step 1.
+        #     Streams the model's response into the assistant placeholder.
+        #     Because it's a generator (uses yield), Gradio re-renders
+        #     the chatbot on every yield, producing the streaming effect.
+        #
+        # We wire both msg_input.submit (Enter key) and send_btn.click
+        # to the same chain so both trigger identical behaviour.
 
         msg_input.submit(
             fn=handle_send,
