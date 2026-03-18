@@ -1,82 +1,99 @@
-# 🤖 CodeMentor AI Agent
+# 🤖 CodeMentor AI
 
-> A locally-running AI agent powered by **qwen2:7b** via Ollama — your personal tutor for coding, programming, and AI.
+> A locally-running AI agent powered by **qwen2:7b** via Ollama — your personal tutor for coding, programming, and AI. No API keys. No cloud. Runs entirely on your machine.
 
-![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python)
+![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)
 ![Gradio](https://img.shields.io/badge/UI-Gradio-orange?logo=gradio)
-![Ollama](https://img.shields.io/badge/LLM-Ollama%20%7C%20qwen2:7b-green)
+![Ollama](https://img.shields.io/badge/LLM-qwen2:7b-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
-![CI](https://github.com/YOUR_USERNAME/simple-ai-agent/actions/workflows/ci.yml/badge.svg)
+![Status](https://img.shields.io/badge/Status-Active-brightgreen)
 
 ---
 
-## ✨ Features
+<div align="center">
+  <img src="assets/screenshot.png" alt="CodeMentor AI generating a merge sort implementation" width="900"/>
+  <p><i>CodeMentor AI generating a fully documented Merge Sort implementation in Python</i></p>
+</div>
 
-- 🧠 **Smart AI Tutor** — Explains code, concepts, ML & AI at any level
-- 🛠️ **Built-in Tools** — Run Python code, calculate math, generate templates
-- 💬 **Beautiful Chat UI** — Dark-themed Gradio interface with streaming responses
-- 🔒 **100% Local** — Your data never leaves your machine (no API keys!)
-- 🐍 **Beginner Friendly** — Well-commented code, clear structure, easy setup
-- 🧪 **Tested** — pytest suite included
-- 🚀 **GitHub Ready** — CI/CD with GitHub Actions
+---
+
+## ✨ What Makes This Project Interesting
+
+Most AI assistants send your data to a remote cloud server and require paid API keys. This project takes a different approach — it runs a full ReAct (Reasoning + Acting) agent loop entirely on your local machine using Ollama. The agent can reason about your question, decide whether it needs to use a tool, execute that tool, observe the result, and then form a final answer grounded in real output. All of this happens on your own hardware, with zero data leaving your computer.
+
+---
+
+## 🛠️ Features
+
+- 🧠 **ReAct Agent Loop** — the agent reasons about whether to answer directly or use a tool before responding
+- 🐍 **Live Python Execution** — runs code snippets in a sandboxed environment and shows the real output
+- 🧮 **Math Calculator** — evaluates expressions using a safe, restricted evaluator
+- 💡 **Concept Explainer** — structures explanations at beginner, intermediate, or advanced level
+- 📝 **Code Template Generator** — produces clean starter templates for common programming patterns
+- 💬 **Streaming Responses** — responses appear token by token, just like ChatGPT
+- 🔒 **100% Local** — no API keys, no internet required after setup, no data sent anywhere
+- 🎨 **Dark UI** — clean Gradio interface with syntax-highlighted code blocks
 
 ---
 
 ## 📁 Project Structure
 
 ```
-simple-ai-agent/
-├── agent/                  # Core AI logic
+SimpleAIAgent/
+├── agent/                  # The brain — ReAct loop, Ollama API, tools
 │   ├── __init__.py
-│   ├── agent.py            # ReAct agent loop + Ollama API calls
-│   ├── tools.py            # Tool definitions and executors
-│   └── prompts.py          # System prompt (personality + instructions)
+│   ├── agent.py            # Core agent: message handling, tool detection, streaming
+│   ├── tools.py            # Tool definitions and executors (run_python, calculate, etc.)
+│   └── prompts.py          # System prompt — gives the model its CodeMentor personality
 │
-├── ui/                     # User Interface
+├── ui/                     # The face — Gradio chat interface
 │   ├── __init__.py
-│   └── app.py              # Gradio chat interface
+│   └── app.py              # Chat UI with streaming, example prompts, sidebar
 │
-├── utils/                  # Shared utilities
+├── utils/                  # Shared helpers
 │   ├── __init__.py
-│   └── helpers.py          # Logger, health checks, startup banner
+│   └── helpers.py          # Logger, Ollama health checks, startup banner
 │
-├── tests/                  # Test suite
+├── tests/                  # Automated test suite
 │   ├── __init__.py
-│   └── test_agent.py       # pytest tests
+│   └── test_agent.py       # pytest tests for tools and agent logic
+│
+├── assets/
+│   └── screenshot.png      # UI screenshot used in this README
 │
 ├── .github/
 │   └── workflows/
-│       └── ci.yml          # GitHub Actions CI pipeline
+│       └── ci.yml          # GitHub Actions — runs tests on every push
 │
 ├── .vscode/
-│   ├── settings.json       # Editor config
-│   └── extensions.json     # Recommended extensions
+│   ├── settings.json       # VS Code project settings (auto-format, interpreter path)
+│   └── extensions.json     # Recommended VS Code extensions
 │
-├── .env.example            # Environment variable template
-├── .gitignore
-├── requirements.txt
-├── main.py                 # ← Start here
-└── README.md
+├── .env.example            # Environment variable template (copy to .env to use)
+├── .gitignore              # Tells Git what NOT to commit (venv, secrets, cache)
+├── requirements.txt        # All Python dependencies — install with pip
+├── main.py                 # Entry point — run this to start the agent
+└── README.md               # You are here
 ```
 
 ---
 
-## 🚀 Quick Start (Step by Step)
+## 🚀 Quick Start
 
-### 1. Prerequisites
+### Prerequisites
 
-Make sure you have these installed:
+Make sure you have these installed before starting:
 
-| Tool | Version | Download |
-|------|---------|----------|
-| Python | 3.11+ | [python.org](https://python.org) |
-| Git | Any | [git-scm.com](https://git-scm.com) |
-| Ollama | Latest | [ollama.com](https://ollama.com) |
-| VS Code | Latest | [code.visualstudio.com](https://code.visualstudio.com) |
+| Tool | Version | Why You Need It | Download |
+|------|---------|----------------|----------|
+| Python | 3.11+ | Runs all the code | [python.org](https://python.org) |
+| Git | Any | Version control | [git-scm.com](https://git-scm.com) |
+| Ollama | Latest | Runs the AI model locally | [ollama.com](https://ollama.com) |
+| VS Code | Latest | Recommended editor | [code.visualstudio.com](https://code.visualstudio.com) |
 
 ---
 
-### 2. Clone the Repository
+### Step 1 — Clone the Repository
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/simple-ai-agent.git
@@ -85,9 +102,9 @@ cd simple-ai-agent
 
 ---
 
-### 3. Set Up Virtual Environment
+### Step 2 — Create and Activate a Virtual Environment
 
-A virtual environment keeps your project's packages isolated from the rest of your system.
+A virtual environment keeps this project's packages isolated from everything else on your system. Think of it as a clean room specifically for this project.
 
 **Windows:**
 ```bash
@@ -101,11 +118,11 @@ python -m venv venv
 source venv/bin/activate
 ```
 
-You'll see `(venv)` in your terminal — that means it's active! ✅
+You will see `(venv)` appear at the start of your terminal prompt — this confirms the environment is active.
 
 ---
 
-### 4. Install Dependencies
+### Step 3 — Install Dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -113,24 +130,19 @@ pip install -r requirements.txt
 
 ---
 
-### 5. Set Up Ollama + qwen2:7b
+### Step 4 — Set Up Ollama and Pull the Model
 
 ```bash
-# Start the Ollama server
+# Start the Ollama server (keep this running in the background)
 ollama serve
 
-# In a NEW terminal, pull the model (one-time, ~4GB download)
+# In a new terminal window, download the model (~4 GB, one-time only)
 ollama pull qwen2:7b
-```
-
-Verify it works:
-```bash
-ollama run qwen2:7b "Hello! Can you help me learn Python?"
 ```
 
 ---
 
-### 6. Run the Agent
+### Step 5 — Run the Agent
 
 ```bash
 python main.py
@@ -142,134 +154,117 @@ Your browser will open automatically at **http://localhost:7860** 🎉
 
 ## 🛠️ Available Tools
 
-The agent can use these tools autonomously:
+The agent uses a ReAct loop — it reads your message, decides if it needs a tool, runs the tool, and uses the result to form its answer. Here are the five tools it has access to:
 
-| Tool | What it does | Example |
-|------|-------------|---------|
-| `run_python` | Executes Python code safely | "Run: print([x**2 for x in range(5)])" |
-| `calculate` | Evaluates math expressions | "What is sqrt(144) * pi?" |
-| `get_datetime` | Returns current date & time | "What time is it?" |
-| `explain_concept` | Structures concept explanations | "Explain recursion to a beginner" |
-| `generate_code_template` | Creates starter code | "Give me a Flask API template" |
+| Tool | Description | Example Trigger |
+|------|-------------|----------------|
+| `run_python` | Executes Python code in a sandboxed environment | "Run this code for me" |
+| `calculate` | Evaluates math expressions safely | "What is sqrt(144) * pi?" |
+| `get_datetime` | Returns the current date and time | "What is today's date?" |
+| `explain_concept` | Structures a concept explanation by level | "Explain recursion to a beginner" |
+| `generate_code_template` | Creates clean starter code for a given task | "Give me a Flask API template" |
 
 ---
 
 ## 💬 Example Conversations
 
-**Learning Python:**
-```
-You: Explain list comprehensions like I'm a beginner
-AI: Great question! List comprehensions are a concise way to create lists...
-```
+Here are some prompts that showcase what the agent does well:
 
-**Running Code:**
 ```
-You: Write and run a bubble sort in Python
-AI: TOOL_CALL: run_python({"code": "..."})
-    [runs code, shows output]
-    Here's how bubble sort works...
-```
-
-**AI/ML concepts:**
-```
-You: What is the difference between supervised and unsupervised learning?
-AI: Think of it this way — supervised learning is like learning with a teacher...
+"Explain how neural networks work like I'm 16 years old"
+"Write and run a merge sort algorithm in Python"
+"What is the difference between supervised and unsupervised learning?"
+"Debug this code for me: [paste your code]"
+"What is RAG and why do AI engineers use it?"
+"Build me a simple REST API with Flask, step by step"
 ```
 
 ---
 
-## 🧪 Running Tests
+## 🧪 Running the Tests
 
 ```bash
-# Run all tests
+# Run all tests with detailed output
 pytest tests/ -v
 
-# Run with coverage report
+# Run tests with a coverage report showing which lines are tested
 pytest tests/ --cov=agent --cov=utils --cov-report=term-missing
 ```
 
 ---
 
-## 🔧 Configuration
+## ⚙️ Configuration
 
-Copy `.env.example` to `.env` to customize settings:
+Copy the example environment file and edit it to customise the agent's behaviour:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
+The available settings are:
+
 ```env
-OLLAMA_URL=http://localhost:11434
-MODEL_NAME=qwen2:7b
-UI_PORT=7860
-UI_SHARE=false
+OLLAMA_URL=http://localhost:11434    # where Ollama is running
+MODEL_NAME=qwen2:7b                  # which model to use
+UI_PORT=7860                         # which port to serve the UI on
 ```
 
 ---
 
-## 🌐 Using a Different Model
+## 🔄 Switching to a Different Model
 
-You can swap `qwen2:7b` for any Ollama-compatible model:
+Because this project uses Ollama, swapping the AI model is as simple as pulling a new one and updating one line of configuration. Some good alternatives to try:
 
 ```bash
-# Pull a different model
-ollama pull llama3:8b
-ollama pull mistral:7b
-ollama pull codellama:7b  # great for code!
+ollama pull llama3:8b      # Meta's Llama 3 — great all-rounder
+ollama pull mistral:7b     # Mistral — fast and capable
+ollama pull codellama:7b   # Code Llama — specialised for programming tasks
 ```
 
-Then update `MODEL_NAME` in `agent/agent.py` or your `.env` file.
+Then update `MODEL_NAME` in `agent/agent.py` or your `.env` file to match.
 
 ---
 
-## 📤 Publishing to GitHub
+## ⚠️ Security Note
+
+The `run_python` tool executes code locally on **your own machine** only. This project is designed for local, personal use. Do not deploy it as a public web service without implementing proper sandboxing (such as Docker with restricted permissions), as the code execution tool would become a security risk if exposed to untrusted users on the internet.
+
+---
+
+## 🗺️ Ideas for Extending This Project
+
+Once you are comfortable with the codebase, here are natural next steps to make it more powerful:
+
+**Web Search Tool** — integrate DuckDuckGo's free API (no key required) so the agent can look up current information rather than relying only on its training data.
+
+**Persistent Memory** — save conversation history to a SQLite database so the agent remembers previous sessions across restarts.
+
+**Voice Input** — integrate OpenAI's Whisper model (also runs locally via Ollama) for speech-to-text so you can speak your questions.
+
+**Multi-Agent** — build a second specialised agent (e.g. a "Code Reviewer" agent) and have the main agent delegate tasks to it.
+
+---
+
+## 📤 How to Push Your Own Changes to GitHub
 
 ```bash
-# Initialize git (if not already done)
-git init
 git add .
-git commit -m "feat: initial CodeMentor AI agent"
-
-# Create a repo on github.com, then:
-git remote add origin https://github.com/YOUR_USERNAME/simple-ai-agent.git
-git branch -M main
-git push -u origin main
+git commit -m "feat: describe what you changed"
+git push origin main
 ```
-
----
-
-## 🗺️ What to Learn Next
-
-Once comfortable with this project, explore:
-
-1. **Add web search** — integrate DuckDuckGo or SerpAPI
-2. **Memory / RAG** — store conversation history in a vector DB
-3. **Multi-agent** — build specialized sub-agents
-4. **Voice interface** — add Whisper for speech-to-text
-5. **Fine-tuning** — fine-tune the model on your own data
 
 ---
 
 ## 📄 License
 
-MIT — free to use, modify, and share.
+MIT — free to use, modify, and share for any purpose.
 
 ---
 
 ## 🙏 Built With
 
-- [Ollama](https://ollama.com) — local LLM runtime
-- [qwen2:7b](https://ollama.com/library/qwen2) — the language model
-- [Gradio](https://gradio.app) — the UI framework
-- [pytest](https://pytest.org) — testing
+[Ollama](https://ollama.com) for running the LLM locally, [qwen2:7b](https://ollama.com/library/qwen2) as the language model, [Gradio](https://gradio.app) for the chat interface, and [pytest](https://pytest.org) for testing.
 
 ---
 
-*Made with ❤️ for learners everywhere.*
-
-
-## ⚠️ Security Note
-The `run_python` tool executes code locally on your own machine. 
-Do not deploy this as a public web service without implementing 
-proper sandboxing. It is designed for local, personal use only.
+*Built for learners who want to understand AI from the inside out.*
