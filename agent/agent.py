@@ -1,9 +1,21 @@
 """
 Core Agent Logic — ReAct (Reasoning + Acting) Loop
-Connects to Ollama's local API and runs qwen2:7b
+with Langfuse observability tracing.
+
+Every conversation turn is recorded as a Langfuse Trace containing:
+  - The user's input message
+  - A Span for the message sanitisation step
+  - A Generation for each Ollama LLM call (with token counts and latency)
+  - A Span for tool detection
+  - A Span for tool execution (if a tool was called)
+  - A second Generation for the synthesis LLM call (if a tool was used)
+
+If Langfuse is not configured, all tracing calls are silently skipped
+and the agent behaves exactly as it did before — tracing is purely additive.
 """
 
 import json
+import time
 import requests
 from typing import Generator
 from agent.tools import TOOLS, execute_tool
@@ -18,24 +30,24 @@ MODEL_NAME = "qwen2:7b"
 #  OLLAMA COMMUNICATION
 # ──────────────────────────────────────────────
 
-def chat_with_ollama(messages: list, stream: bool = True) -> Generator[str, None, None]:
+def chat_with_ollama(
+    messages: list,
+    stream: bool = True,
+) -> Generator[str, None, None]:
     """
-    Send a list of messages to Ollama and stream back the response token by token.
+    Send a list of messages to Ollama and stream back the response.
 
-    Each message must follow the format:
-        {"role": "user" | "assistant" | "system", "content": "non-empty string"}
-
-    Ollama returns HTTP 400 if any message has an empty content field,
-    which is why we run sanitise_messages() before calling this function.
+    Yields text chunks one at a time so the UI can display them
+    progressively (the 'typing' streaming effect).
     """
     payload = {
         "model": MODEL_NAME,
         "messages": messages,
         "stream": stream,
         "options": {
-            "temperature": 0.7,   # controls creativity (0=deterministic, 1=very random)
-            "top_p": 0.9,         # nucleus sampling — only considers top 90% probability mass
-            "num_ctx": 4096,      # context window size in tokens
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "num_ctx": 4096,
         },
     }
 
@@ -43,8 +55,6 @@ def chat_with_ollama(messages: list, stream: bool = True) -> Generator[str, None
         response = requests.post(
             OLLAMA_URL, json=payload, stream=stream, timeout=120
         )
-        # raise_for_status() converts any 4xx/5xx HTTP response into a Python exception
-        # so we can catch and display it cleanly instead of getting a confusing crash
         response.raise_for_status()
 
         if stream:
@@ -63,7 +73,7 @@ def chat_with_ollama(messages: list, stream: bool = True) -> Generator[str, None
         yield "❌ **Request timed out.** The model is taking too long to respond."
     except requests.exceptions.HTTPError as e:
         status = e.response.status_code if e.response else "unknown"
-        body   = e.response.text[:300] if e.response else ""
+        body   = e.response.text[:300]  if e.response else ""
         yield f"❌ **HTTP {status} Error from Ollama:** {body}"
     except Exception as e:
         yield f"❌ **Unexpected Error:** {str(e)}"
@@ -74,7 +84,7 @@ def chat_with_ollama(messages: list, stream: bool = True) -> Generator[str, None
 # ──────────────────────────────────────────────
 
 def build_tool_context(tools: list) -> str:
-    """Format the list of available tools into a readable description for the model."""
+    """Format the tool list into a readable description for the system prompt."""
     lines = []
     for tool in tools:
         props = tool["parameters"].get("properties", {})
@@ -84,19 +94,18 @@ def build_tool_context(tools: list) -> str:
 
 
 # ──────────────────────────────────────────────
-#  TOOL DETECTION & EXECUTION
+#  TOOL DETECTION
 # ──────────────────────────────────────────────
 
 def detect_and_run_tool(response_text: str) -> tuple:
     """
     Scan the model's response for a TOOL_CALL signal.
 
-    If found, parse the tool name and JSON arguments, execute the tool,
+    If found, parse the tool name + JSON args, execute the tool,
     and return (tool_name, result).
+    If not found, return (None, None).
 
-    If not found, return (None, None) — meaning the model answered directly.
-
-    Expected signal format from the model:
+    Expected format from the model:
         TOOL_CALL: tool_name({"arg": "value"})
     """
     if "TOOL_CALL:" not in response_text:
@@ -124,40 +133,25 @@ def detect_and_run_tool(response_text: str) -> tuple:
 
 
 # ──────────────────────────────────────────────
-#  MESSAGE VALIDATION
+#  MESSAGE SANITISATION
 # ──────────────────────────────────────────────
 
 def extract_text_content(content) -> str:
     """
-    Safely extract a plain string from a message's content field.
+    Convert any content format to a plain string.
 
-    This is necessary because Gradio 6 (and some AI APIs) can represent
-    message content in multiple formats:
-
-      1. A plain string:    "Hello, how are you?"
-         — the most common format, used by Ollama and our agent
-
-      2. A list of blocks:  [{"type": "text", "text": "Hello"}]
-         — the multimodal format used by some Gradio versions and APIs
-         — each block has a "type" and the actual text lives inside "text"
-
-      3. Something else (None, int, etc.)
-         — should never happen in normal usage, but we handle it anyway
-
-    We always return a plain string so the rest of our code never has
-    to think about which format it received.
+    Gradio 6 sometimes sends content as a list of blocks
+    (e.g. [{"type": "text", "text": "hello"}]) rather than
+    a plain string. This function handles all cases and always
+    returns a clean string that Ollama will accept.
     """
     if isinstance(content, str):
-        # Case 1: already a plain string — most common case, just return it
         return content
 
     if isinstance(content, list):
-        # Case 2: a list of content blocks — extract and join all text blocks
-        # Each block looks like: {"type": "text", "text": "actual content"}
         parts = []
         for block in content:
             if isinstance(block, dict):
-                # Try the "text" key first (multimodal block format)
                 text = block.get("text") or block.get("content", "")
                 if text:
                     parts.append(str(text))
@@ -165,32 +159,46 @@ def extract_text_content(content) -> str:
                 parts.append(block)
         return " ".join(parts)
 
-    # Case 3: something unexpected — convert to string as a fallback
     return str(content) if content is not None else ""
 
 
 def sanitise_messages(messages: list) -> list:
     """
-    Prepare messages for sending to Ollama by:
-      1. Extracting plain string content from any format (string, list of blocks, etc.)
-      2. Filtering out any messages where the content is empty after extraction
+    Prepare messages for Ollama by converting content to plain strings
+    and filtering out any messages with empty content.
 
-    This prevents Ollama's HTTP 400 'Bad Request' error, which it returns
-    whenever any message in the array has an empty content field.
+    Ollama returns HTTP 400 if any message has an empty content field.
     """
     clean = []
     for msg in messages:
-        raw_content = msg.get("content", "")
-        # Always convert to a plain string first, regardless of original format
-        text_content = extract_text_content(raw_content)
-
-        # Only keep the message if it has actual non-whitespace content
-        if text_content.strip():
-            clean.append({
-                "role":    msg.get("role", "user"),
-                "content": text_content,   # always a clean plain string
-            })
+        text = extract_text_content(msg.get("content", ""))
+        if text.strip():
+            clean.append({"role": msg.get("role", "user"), "content": text})
     return clean
+
+
+# ──────────────────────────────────────────────
+#  LANGFUSE HELPERS
+# ──────────────────────────────────────────────
+
+def _safe_end_span(span, output: str = None, metadata: dict = None):
+    """
+    Safely end a Langfuse span/generation.
+
+    We wrap every Langfuse call in a try/except so that if Langfuse's
+    servers are temporarily unreachable, the agent keeps working normally.
+    Observability should never break your application — it's optional
+    infrastructure layered on top of core functionality.
+    """
+    if span is None:
+        return
+    try:
+        kwargs = {}
+        if output   is not None: kwargs["output"]   = output
+        if metadata is not None: kwargs["metadata"]  = metadata
+        span.end(**kwargs)
+    except Exception:
+        pass  # tracing failure must never crash the agent
 
 
 # ──────────────────────────────────────────────
@@ -199,17 +207,21 @@ def sanitise_messages(messages: list) -> list:
 
 class AIAgent:
     """
-    A ReAct-style AI Agent with persistent conversation memory and tool use.
+    A ReAct-style AI Agent with Langfuse observability.
 
-    'ReAct' stands for Reasoning + Acting — the agent can decide to use
-    a tool mid-response, observe the result, and then form a final answer
-    based on that real output rather than just making something up.
+    Every call to stream_response() creates one Langfuse Trace that
+    contains the complete story of what happened: which messages were
+    sent, which LLM calls were made, whether a tool was used, what the
+    tool returned, and how long each step took.
+
+    The langfuse_client is injected at construction time so the agent
+    doesn't depend on any global state. If it's None, tracing is skipped.
     """
 
-    def __init__(self):
+    def __init__(self, langfuse_client=None):
         self.conversation_history: list[dict] = []
+        self.langfuse = langfuse_client         # None means tracing is disabled
 
-        # Build tool descriptions and inject into the system prompt
         tool_context = build_tool_context(TOOLS)
         self.system_message = {
             "role":    "system",
@@ -217,71 +229,219 @@ class AIAgent:
         }
 
     def reset(self):
-        """Wipe all conversation memory — called when the user clicks Clear."""
+        """Wipe conversation memory — called when the user clicks Clear."""
         self.conversation_history = []
 
     def stream_response(self, user_message: str) -> Generator[str, None, None]:
         """
-        The full ReAct loop — processes a user message and streams a response.
+        The full ReAct loop with Langfuse tracing woven in.
 
-        Step 1: Record the user's message in conversation history.
-        Step 2: Send the full history to Ollama and stream the first response.
-        Step 3: Check if the response contains a TOOL_CALL signal.
-        Step 4: If yes — execute the tool, show the result, make a second
-                Ollama call so the model can interpret the result, stream that.
-        Step 5: Save the complete final response to conversation history.
+        Langfuse Trace structure created per call:
+        ─────────────────────────────────────────
+        Trace: "chat_turn"
+          ├── Span:       "sanitise_messages"
+          ├── Generation: "llm_first_call"       ← always happens
+          ├── Span:       "tool_detection"        ← always happens
+          ├── Span:       "tool_execution"        ← only if tool called
+          └── Generation: "llm_synthesis_call"   ← only if tool called
         """
 
-        # Step 1 — add the user's message to memory
+        # ── STEP 1: Record user message ──────────────────────────────────────
         self.conversation_history.append({
             "role":    "user",
             "content": user_message,
         })
 
-        # Build the full message list: system prompt + entire conversation so far
-        # Then sanitise to ensure every message has non-empty plain-string content
-        messages = sanitise_messages([self.system_message] + self.conversation_history)
+        # ── STEP 2: Create the root Langfuse Trace for this conversation turn ─
+        # A Trace is the top-level container that groups all the Spans and
+        # Generations that happen during a single user → agent interaction.
+        trace = None
+        try:
+            if self.langfuse:
+                trace = self.langfuse.trace(
+                    name="chat_turn",
+                    input=user_message,
+                    metadata={
+                        "model":            MODEL_NAME,
+                        "history_length":   len(self.conversation_history),
+                        "tools_available":  [t["name"] for t in TOOLS],
+                    },
+                )
+        except Exception:
+            pass  # Langfuse unavailable — continue without tracing
 
-        # Step 2 — stream the model's initial response
+        # ── STEP 3: Sanitise messages ─────────────────────────────────────────
+        # We record this as a Span so you can see in the dashboard how many
+        # messages were cleaned and how many were filtered out as empty.
+        sanitise_span = None
+        try:
+            if trace:
+                sanitise_span = trace.span(name="sanitise_messages")
+        except Exception:
+            pass
+
+        raw_messages = [self.system_message] + self.conversation_history
+        messages     = sanitise_messages(raw_messages)
+
+        _safe_end_span(sanitise_span, metadata={
+            "raw_count":   len(raw_messages),
+            "clean_count": len(messages),
+        })
+
+        # ── STEP 4: First LLM call — stream the model's initial response ──────
+        # We record this as a Langfuse Generation, which is the special Span
+        # type for LLM calls. It captures the prompt, the completion, the
+        # model name, and the latency so you can see it all in the dashboard.
+        generation_span = None
+        try:
+            if trace:
+                generation_span = trace.generation(
+                    name="llm_first_call",
+                    model=MODEL_NAME,
+                    input=messages,     # the full message list sent to Ollama
+                    metadata={"stream": True},
+                )
+        except Exception:
+            pass
+
+        t0            = time.time()
         full_response = ""
+
         for chunk in chat_with_ollama(messages):
             full_response += chunk
-            yield full_response  # each yield updates the UI in real time
+            yield full_response              # each yield updates the UI live
 
-        # Step 3 — check if the model wants to use a tool
+        first_call_latency = round(time.time() - t0, 3)
+
+        # End the generation span with the completed output and latency
+        try:
+            if generation_span:
+                generation_span.end(
+                    output=full_response,
+                    usage={
+                        # Ollama doesn't return token counts during streaming,
+                        # so we estimate: ~0.75 tokens per character is a
+                        # reasonable approximation for English text.
+                        "input":  int(sum(len(m["content"]) for m in messages) * 0.75),
+                        "output": int(len(full_response) * 0.75),
+                    },
+                    metadata={"latency_seconds": first_call_latency},
+                )
+        except Exception:
+            pass
+
+        # ── STEP 5: Tool detection ────────────────────────────────────────────
+        tool_detection_span = None
+        try:
+            if trace:
+                tool_detection_span = trace.span(
+                    name="tool_detection",
+                    input=full_response[:500],  # first 500 chars is enough context
+                )
+        except Exception:
+            pass
+
         tool_name, tool_result = detect_and_run_tool(full_response)
 
+        _safe_end_span(tool_detection_span, metadata={
+            "tool_detected": tool_name is not None,
+            "tool_name":     tool_name,
+        })
+
+        # ── STEP 6: Tool execution (if a tool was detected) ───────────────────
         if tool_result:
-            # Format the tool result as a nicely displayed block in the chat
+            tool_exec_span = None
+            try:
+                if trace:
+                    tool_exec_span = trace.span(
+                        name="tool_execution",
+                        input={"tool": tool_name},
+                        metadata={"tool_name": tool_name},
+                    )
+            except Exception:
+                pass
+
+            # Format the tool result for display in the chat UI
             tool_display = (
                 f"\n\n🔧 **Tool Used:** `{tool_name}`\n"
                 f"```\n{tool_result}\n```\n\n"
             )
             yield full_response + tool_display
 
-            # Step 4 — feed the tool result back to the model so it can
-            # form a final answer grounded in the actual tool output
+            _safe_end_span(tool_exec_span, output=tool_result)
+
+            # ── STEP 7: Second LLM call — synthesise answer from tool result ──
+            # We inject the tool result back into the conversation and ask the
+            # model to form a final grounded answer based on the real output.
             follow_up = (
                 f"Tool '{tool_name}' returned this result:\n{tool_result}\n\n"
                 "Now provide a clear, helpful answer based on this result."
             )
-            second_pass_messages = sanitise_messages(
+            second_messages = sanitise_messages(
                 messages + [
                     {"role": "assistant", "content": full_response},
                     {"role": "user",      "content": follow_up},
                 ]
             )
 
+            synthesis_span = None
+            try:
+                if trace:
+                    synthesis_span = trace.generation(
+                        name="llm_synthesis_call",
+                        model=MODEL_NAME,
+                        input=second_messages,
+                        metadata={"stream": True, "triggered_by_tool": tool_name},
+                    )
+            except Exception:
+                pass
+
+            t1             = time.time()
             final_response = ""
-            for chunk in chat_with_ollama(second_pass_messages):
+
+            for chunk in chat_with_ollama(second_messages):
                 final_response += chunk
                 yield full_response + tool_display + final_response
 
+            synthesis_latency = round(time.time() - t1, 3)
+
+            try:
+                if synthesis_span:
+                    synthesis_span.end(
+                        output=final_response,
+                        usage={
+                            "input":  int(sum(len(m["content"]) for m in second_messages) * 0.75),
+                            "output": int(len(final_response) * 0.75),
+                        },
+                        metadata={"latency_seconds": synthesis_latency},
+                    )
+            except Exception:
+                pass
+
             full_response = full_response + tool_display + final_response
 
-        # Step 5 — save the complete response to memory for future context
+        # ── STEP 8: Save response to memory and close the root trace ─────────
         if full_response.strip():
             self.conversation_history.append({
                 "role":    "assistant",
                 "content": full_response,
             })
+
+        # End the root trace with the final output so the dashboard shows
+        # the complete input → output pair for every conversation turn.
+        try:
+            if trace:
+                trace.update(
+                    output=full_response,
+                    metadata={
+                        "tool_used":            tool_name,
+                        "tool_result_length":   len(tool_result) if tool_result else 0,
+                        "total_response_length": len(full_response),
+                    },
+                )
+                # flush() ensures this trace is sent to Langfuse immediately
+                # rather than waiting for the next batch. Important for
+                # short-lived processes and debugging.
+                self.langfuse.flush()
+        except Exception:
+            pass

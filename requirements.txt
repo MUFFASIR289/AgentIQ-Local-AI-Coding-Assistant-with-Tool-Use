@@ -1,11 +1,14 @@
-# Core
-gradio>=4.44.0
-requests>=2.31.0
+# ── Core ──────────────────────────────────────────────────────────────────────
+gradio>=4.44.0          # chat UI framework
+requests>=2.31.0        # HTTP client for Ollama API calls
 
-# Testing
-pytest>=7.4.0
-pytest-cov>=4.1.0
+# ── Observability ─────────────────────────────────────────────────────────────
+langfuse>=2.0.0,<3.0.0       # LLM tracing, monitoring, and analytics dashboard
 
-# Dev tools (optional but recommended)
-black>=23.0.0       # code formatter
-ruff>=0.1.0         # linter
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest>=7.4.0           # test runner
+pytest-cov>=4.1.0       # coverage reporting
+
+# ── Code Quality (optional but recommended) ───────────────────────────────────
+black>=23.0.0           # auto-formatter — enforces consistent code style
+ruff>=0.1.0             # linter — catches bugs and anti-patterns
